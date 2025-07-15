@@ -1,0 +1,47 @@
+{
+  "name": "editor-demo",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "lint": "eslint .",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@ant-design/icons": "5.x",
+    "antd": "~5.22.4",
+    "big.js": "^7.0.1",
+    "classnames": "^2.5.1",
+    "dom-to-image": "^2.6.0",
+    "file-saver": "^2.0.5",
+    "jszip": "^3.10.1",
+    "keycon": "^1.4.0",
+    "konva": "^9.3.20",
+    "mitt": "^3.0.1",
+    "moveable-helper": "^0.4.0",
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
+    "react-konva": "~18.2.12",
+    "react-moveable": "^0.56.0",
+    "react-selecto": "^1.26.3",
+    "scenejs": "^1.10.3",
+    "use-image": "^1.1.4",
+    "uuid": "^11.1.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.29.0",
+    "@types/dom-to-image": "^2.6.7",
+    "@types/react": "^19.1.8",
+    "@types/react-dom": "^19.1.6",
+    "@vitejs/plugin-react": "^4.5.2",
+    "eslint": "^9.29.0",
+    "eslint-plugin-react-hooks": "^5.2.0",
+    "eslint-plugin-react-refresh": "^0.4.20",
+    "globals": "^16.2.0",
+    "typescript": "~5.8.3",
+    "typescript-eslint": "^8.34.1",
+    "vite": "^7.0.0"
+  }
+}
