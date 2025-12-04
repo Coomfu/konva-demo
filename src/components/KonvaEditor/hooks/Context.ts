@@ -1,13 +1,21 @@
 import { createContext } from "react";
-import type { IObject, Layer, LayerHistory, Position, Size } from "../type/types";
+import type {
+  IObject,
+  Layer,
+  LayerHistory,
+  Position,
+  Size,
+} from "../type/types";
 import type Konva from "konva";
 import type { HistoryManager } from "./useHistoryManager";
 
 export type EditorContextType = {
-  cursor?: 'default' | 'pen' | 'select' | 'expand';
-  setCursor?: React.Dispatch<React.SetStateAction<'default' | 'pen' | 'select' | 'expand'>>;
+  cursor?: "default" | "pen" | "select" | "expand";
+  setCursor?: React.Dispatch<
+    React.SetStateAction<"default" | "pen" | "select" | "expand">
+  >;
   layers?: Layer[];
-  selectedLayer?: Layer;
+  selectedLayer?: Layer | null;
   selectedLayers?: Layer[];
   setLayers?: React.Dispatch<React.SetStateAction<Layer[]>>;
   updateLayers?: (nodes: any[]) => void;
@@ -31,9 +39,8 @@ export type EditorContextType = {
   imagesCache?: { [id: string]: HTMLImageElement };
   editState?: IObject<any>;
   setEditState?: React.Dispatch<React.SetStateAction<IObject<any>>>;
-}
+};
 
 const EditorContext = createContext<EditorContextType>({});
 
 export default EditorContext;
-

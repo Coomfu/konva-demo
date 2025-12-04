@@ -98,7 +98,7 @@ const ToolBar = () => {
     setCursor?.(cursor);
   };
 
-  const onChangeZoomScale = (scale: number) => {
+  const onChangeZoomScale = (scale: any) => {
     const stage = stageRef?.current;
     if (!stage || !zoomScale) return;
 
@@ -155,14 +155,12 @@ const ToolBar = () => {
   const onCutOut = () => {
     if (!selectedLayer) return;
 
-    const cv = window.cv;
     const imageElement = imagesCache?.[selectedLayer.imgSrc];
     const width = imageElement?.width || 0;
     const height = imageElement?.height || 0;
     const { cropWidth = 0, cropHeight = 0, width: layerWidth = 0, height: layerHeight = 0, cropX = 0, cropY = 0 } = selectedLayer;
-    // const ratio = Math.max(cropWidth / layerWidth, cropHeight / layerHeight);
     const ratio = 1;
-    if (!imageElement || !cv) return;
+    if (!imageElement) return;
 
     const offsetX = (selectedLayer?.x || 0)
     const offsetY = (selectedLayer?.y || 0)
@@ -178,12 +176,13 @@ const ToolBar = () => {
     // 填黑背景，准备白色路径
     [brushCtx, eraserCtx].forEach(ctx => {
       ctx.fillStyle = 'black';
-      ctx.fillRect(0, 0, width, height);
+      ctx.fillRect(0, 0, layerWidth, layerHeight);
       ctx.strokeStyle = 'white';
       ctx.lineCap = 'round';
       ctx.lineJoin = 'round';
     });
 
+    // 2. 绘制 brush 和 eraser 路径
     for (const line of editState?.lines || []) {
       const ctx = line.tool === 'brush' ? brushCtx : line.tool === 'eraser' ? eraserCtx : null;
       if (!ctx) continue;
@@ -197,54 +196,60 @@ const ToolBar = () => {
       ctx.stroke();
     }
 
-    // 4. 用 OpenCV 相减 mask
-    const brushMask = cv.imread(brushCanvas);
-    const eraserMask = cv.imread(eraserCanvas);
-    const brushGray = new cv.Mat();
-    const eraserGray = new cv.Mat();
-    cv.cvtColor(brushMask, brushGray, cv.COLOR_RGBA2GRAY);
-    cv.cvtColor(eraserMask, eraserGray, cv.COLOR_RGBA2GRAY);
-    cv.threshold(brushGray, brushGray, 127, 255, cv.THRESH_BINARY);
-    cv.threshold(eraserGray, eraserGray, 127, 255, cv.THRESH_BINARY);
-    const finalMask = new cv.Mat();
-    cv.subtract(brushGray, eraserGray, finalMask);
-  
-    // 5. 读取原图并添加透明 alpha
-    const imageMat = cv.imread(imageElement);
-    const dsize = new cv.Size(layerWidth, layerHeight);
-    const resized = new cv.Mat();
-    cv.resize(imageMat, resized, dsize, 0, 0, cv.INTER_LINEAR);
-    const rgba = new cv.Mat();
-    cv.cvtColor(resized, rgba, cv.COLOR_RGB2RGBA);
-  
-    // 6. 应用 mask 到 alpha 通道（mask=255 → alpha=0）
-    for (let y = 0; y < finalMask.rows; y++) {
-      for (let x = 0; x < finalMask.cols; x++) {
-        const maskVal = finalMask.ucharPtr(y, x)[0];
-        if (maskVal === 255) {
-          rgba.ucharPtr(y, x)[3] = 0; // 设置为透明
-        }
+    // 3. 获取 brush 和 eraser mask 的像素数据
+    const brushImageData = brushCtx.getImageData(0, 0, layerWidth, layerHeight);
+    const eraserImageData = eraserCtx.getImageData(0, 0, layerWidth, layerHeight);
+    const brushData = brushImageData.data;
+    const eraserData = eraserImageData.data;
+
+    // 4. 创建输出 canvas，绘制原图
+    const tempCanvas = document.createElement('canvas');
+    tempCanvas.width = layerWidth;
+    tempCanvas.height = layerHeight;
+    const tempCtx = tempCanvas.getContext('2d')!;
+    tempCtx.drawImage(imageElement, 0, 0, layerWidth, layerHeight);
+
+    // 5. 获取原图像素数据
+    const imageData = tempCtx.getImageData(0, 0, layerWidth, layerHeight);
+    const pixels = imageData.data;
+
+    // 6. 应用 mask：brush 区域保留，eraser 区域移除
+    for (let i = 0; i < pixels.length; i += 4) {
+      const brushValue = brushData[i]; // R 通道，白色=255，黑色=0
+      const eraserValue = eraserData[i];
+      
+      // brush - eraser: 如果 brush 有白色且 eraser 没有白色，则保留
+      if (brushValue > 127 && eraserValue <= 127) {
+        // 保留不透明
+        pixels[i + 3] = 255;
+      } else {
+        // 设为透明
+        pixels[i + 3] = 0;
       }
     }
-  
-    // 7. 截取 crop 区域（最终输出图像）
-    const cropRect = new cv.Rect(cropX, cropY, cropWidth / width * layerWidth, cropHeight / height * layerHeight);
-    const cropped = rgba.roi(cropRect);
 
-    // 8. 显示或导出结果
+    // 7. 将处理后的像素数据放回
+    tempCtx.putImageData(imageData, 0, 0);
+
+    // 8. 截取 crop 区域
+    const cropRectWidth = Math.round(cropWidth / width * layerWidth);
+    const cropRectHeight = Math.round(cropHeight / height * layerHeight);
     const outputCanvas = document.createElement('canvas');
-    outputCanvas.width = layerWidth;
-    outputCanvas.height = layerHeight;
-    cv.imshow(outputCanvas, cropped);
+    outputCanvas.width = cropRectWidth;
+    outputCanvas.height = cropRectHeight;
+    const outputCtx = outputCanvas.getContext('2d')!;
+    outputCtx.drawImage(
+      tempCanvas,
+      cropX, cropY, cropRectWidth, cropRectHeight,
+      0, 0, cropRectWidth, cropRectHeight
+    );
 
+    // 9. 下载结果
     const finalDataURL = outputCanvas.toDataURL('image/png');
     const a = document.createElement('a');
     a.href = finalDataURL;
     a.download = 'cutout.png';
     a.click();
-
-    // 9. 释放资源
-    [brushMask, eraserMask, brushGray, eraserGray, finalMask, imageMat, rgba, cropped].forEach(mat => mat.delete());
   }
 
   return (
@@ -310,7 +315,7 @@ const ToolBar = () => {
           </div>
         )}
         <Select
-          value={zoomScale || 1}
+          value={`${Math.round(zoomScale * 100)}%`}
           onSelect={onChangeZoomScale}
           options={ZOOM_SCALE_OPTIONS}
         />

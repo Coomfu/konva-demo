@@ -1,32 +1,48 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { EditorContextType } from "./Context";
-import type { IObject, Layer, LayerHistory, Position, Size } from "../type/types";
+import type {
+  IObject,
+  Layer,
+  LayerHistory,
+  Position,
+  Size,
+} from "../type/types";
 import Konva from "konva";
 import { useHistoryManager } from "./useHistoryManager";
 import useCachedImages from "./useCachedImage";
 
 const useEditor = (): Required<EditorContextType> => {
-  const [cursor, setCursor] = useState<'default' | 'pen' | 'select' | 'expand'>('default');
+  const [cursor, setCursor] = useState<"default" | "pen" | "select" | "expand">(
+    "default"
+  );
   const [layers, setLayers] = useState<Layer[]>([]);
 
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const selectedLayer = useMemo(() => {
-    if (!selectedIds || !selectedIds.length || selectedIds.length > 1) return null;
-    return layers.find(layer => layer.id === selectedIds[0]);
+    if (!selectedIds || !selectedIds.length || selectedIds.length > 1)
+      return null;
+    return layers.find((layer) => layer.id === selectedIds[0]) ?? null;
   }, [layers, selectedIds]);
   const selectedLayers = useMemo(() => {
     if (!selectedIds || !selectedIds.length) return [];
-    return layers.filter(layer => selectedIds.includes(layer.id));
+    return layers.filter((layer) => selectedIds.includes(layer.id));
   }, [layers, selectedIds]);
 
-  const [viewportSize, setViewportSize] = useState<Size>({ width: 512, height: 512 });
-  const [containerSize, setContainerSize] = useState<Size>({ width: 512, height: 512 });
-  const viewportPos = useMemo<Position>(
-    () => {
-      return {
-      x: containerSize.width / 2 - viewportSize.width / 2,
-      y: containerSize.height / 2 - viewportSize.height / 2,
-    }
+  const [viewportSize, setViewportSize] = useState<Size>({
+    width: 512,
+    height: 512,
+  });
+  const [containerSize, setContainerSize] = useState<Size>({
+    width: 512,
+    height: 512,
+  });
+  const viewportPos = { x: 0, y: 0 };
+
+  const autoZoomScale = useMemo(() => {
+    return Math.min(
+      (containerSize.width * 0.7) / viewportSize.width,
+      (containerSize.height * 0.7) / viewportSize.height
+    );
   }, [containerSize, viewportSize]);
 
   const stageRef = useRef<Konva.Stage>(null);
@@ -95,10 +111,53 @@ const useEditor = (): Required<EditorContextType> => {
     }
   };
 
+  const focusCenter = useCallback(
+    (animate: boolean = true) => {
+      setZoomScale?.(autoZoomScale);
+      const stage = stageRef?.current;
+      if (!stage) return;
+
+      const minX = (-viewportPos?.x - viewportSize?.width) * autoZoomScale;
+      const maxX = minX + stage.width() + viewportSize?.width * autoZoomScale;
+      const minY = (-viewportPos?.y - viewportSize?.height) * autoZoomScale;
+      const maxY = minY + stage.height() + viewportSize?.height * autoZoomScale;
+
+      const newCenter = {
+        x: (maxX + minX) / 2,
+        y: (maxY + minY) / 2,
+      };
+
+      if (!animate) {
+        stage.scale({ x: autoZoomScale, y: autoZoomScale });
+
+        stage.position(newCenter);
+        return;
+      }
+
+      new Konva.Tween({
+        node: stage,
+        duration: 0.4,
+        scaleX: autoZoomScale,
+        scaleY: autoZoomScale,
+        x: newCenter.x,
+        y: newCenter.y,
+        easing: Konva.Easings.EaseInOut,
+      }).play();
+    },
+    [autoZoomScale, viewportSize]
+  );
+
+  useEffect(() => {
+    focusCenter();
+  }, [focusCenter]);
+
   // 监听容器尺寸变化
   useEffect(() => {
     const updateSize = () => {
-      // 应该是优先缩小比例， todo
+      setContainerSize({
+        width: containerRef.current?.clientWidth || 0,
+        height: containerRef.current?.clientHeight || 0,
+      });
     };
 
     updateSize();
@@ -178,7 +237,7 @@ const useEditor = (): Required<EditorContextType> => {
     addLayerHistoryImage,
     imagesCache,
     editState,
-    setEditState
+    setEditState,
   };
 };
 
